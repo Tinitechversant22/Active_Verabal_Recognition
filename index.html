@@ -1,0 +1,81 @@
+ <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Audio Recorder</title>
+</head>
+<body>
+    <h1>WebRTC Audio Recorder</h1>
+    <button id="start">Start Recording</button>
+    <button id="stop" disabled>Stop Recording</button>
+    <p id="status"></p>
+    <a id="download" href="#" download="output.webm" style="display:none;">Download</a>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+
+        document.getElementById('start').addEventListener('click', async () => {
+            try {
+                // Get the media stream
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                // Create MediaRecorder instance
+                mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+                // Handle data availability
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                // Handle stop event
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    const audioUrl = URL.createObjectURL(audioBlob);
+
+                    // Update download link
+                    const downloadLink = document.getElementById('download');
+                    downloadLink.href = audioUrl;
+                    downloadLink.style.display = 'block';
+                    downloadLink.textContent = 'Download Recording';
+
+                    // Upload the audio blob
+                    const formData = new FormData();
+                    formData.append('audio', audioBlob, 'output.webm');
+
+                    fetch('http://localhost:5000/process_audio', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        document.getElementById('status').textContent = `Server Response: ${JSON.stringify(data)}`;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+                };
+
+                // Start recording
+                mediaRecorder.start();
+                document.getElementById('status').textContent = 'Recording...';
+                document.getElementById('start').disabled = true;
+                document.getElementById('stop').disabled = false;
+            } catch (err) {
+                console.error('Error accessing media devices.', err);
+                document.getElementById('status').textContent = `Error: ${err.message}`;
+            }
+        });
+
+        document.getElementById('stop').addEventListener('click', () => {
+            mediaRecorder.stop();
+            document.getElementById('status').textContent = 'Finished recording.';
+            document.getElementById('start').disabled = false;
+            document.getElementById('stop').disabled = true;
+        });
+    </script>
+</body>
+</html> 
+
